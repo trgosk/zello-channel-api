@@ -1,84 +1,43 @@
-import os
+#!/usr/bin/env python
+from zellortlstreamer import databuffer
+from zellortlstreamer.logger import log
 import asyncio
 import base64
 import json
 import time
 import aiohttp
 import socket
-import configparser
-import opus_file_stream
+from .opus_file_stream import OpusFileStream
 
 WS_ENDPOINT = "wss://zello.io/ws"
 WS_TIMEOUT_SEC = 2
 
+global ZelloWS, ZelloStreamID
 ZelloWS = None
 ZelloStreamID = None
-
-
-def main():
-    global ZelloWS, ZelloStreamID
-
-    try:
-        os.chdir("../")
-        config = configparser.ConfigParser()
-        config.read('stream.conf')
-        username = config['zello']['username']
-        password = config['zello']['password']
-        token = config['zello']['token']
-        channel = config['zello']['channel']
-        filename = config['media']['filename']
-    except KeyError as error:
-        print("Check config file. Missing key:", error)
-        return
-
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(zello_stream_audio_to_channel(username, password,
-            token, channel, filename))
-    except KeyboardInterrupt:
-        try:
-            if ZelloWS and ZelloStreamID:
-                loop.run_until_complete(zello_stream_stop(ZelloWS, ZelloStreamID))
-
-        except aiohttp.client_exceptions.ClientError as error:
-            print("Error during stopping. ", error)
-
-        def shutdown_exception_handler(loop, context):
-            if "exception" in context and isinstance(context["exception"], asyncio.CancelledError):
-                return
-            loop.default_exception_handler(context)
-
-        loop.set_exception_handler(shutdown_exception_handler)
-        tasks = asyncio.gather(*asyncio.all_tasks(loop=loop), return_exceptions=True)
-        tasks.add_done_callback(lambda t: loop.stop())
-        tasks.cancel()
-        while not tasks.done() and not loop.is_closed():
-            loop.run_forever()
-        print("Stopped by user")
-    finally:
-        loop.close()
-
 
 async def zello_stream_audio_to_channel(username, password, token, channel, opusfile):
     # Pass out the opened WebSocket and StreamID to handle synchronous keyboard interrupt
     global ZelloWS, ZelloStreamID
     try:
-        opus_stream = opus_file_stream.OpusFileStream(opusfile)
+        opus_stream = OpusFileStream(opusfile, databuffer)
         conn = aiohttp.TCPConnector(family = socket.AF_INET, ssl = False)
         async with aiohttp.ClientSession(connector = conn) as session:
             async with session.ws_connect(WS_ENDPOINT) as ws:
                 ZelloWS = ws
                 await asyncio.wait_for(authenticate(ws, username, password, token, channel), WS_TIMEOUT_SEC)
-                print(f"User {username} has been authenticated on {channel} channel")
+                log.logger.info(f"User {username} has been authenticated on {channel} channel")
                 stream_id = await asyncio.wait_for(zello_stream_start(ws, opus_stream), WS_TIMEOUT_SEC)
                 ZelloStreamID = stream_id
-                print(f"Started streaming {opusfile}")
+                log.logger.info(f"Started streaming {opusfile}")
                 await zello_stream_send_audio(session, ws, stream_id, opus_stream)
                 await asyncio.wait_for(zello_stream_stop(ws, stream_id), WS_TIMEOUT_SEC)
     except (NameError, aiohttp.client_exceptions.ClientError, IOError) as error:
-        print(error)
+        log.logger.error(error)
     except asyncio.TimeoutError:
-        print("Communication timeout")
+        log.logger.error("Communication timeout")
+    finally:
+        log.logger.info(f"Ended streaming {opusfile}")
 
 async def authenticate(ws, username, password, token, channel):
     # https://github.com/zelloptt/zello-channel-api/blob/master/AUTH.md
@@ -132,7 +91,7 @@ async def zello_stream_start(ws, opus_stream):
             if "success" in data and "stream_id" in data and data["success"]:
                 return data["stream_id"]
             elif "error" in data:
-                print("Got an error:", data["error"])
+                log.logger.error(f'Got an error: {data["error"]}')
                 break
             else:
                 # Ignore the messages we are not interested in
@@ -166,10 +125,14 @@ async def zello_stream_send_audio(session, ws, stream_id, opus_stream):
     time_streaming_sec = 0
     packet_id = 0
     while True:
-        data = opus_stream.get_next_opus_packet()
+        if databuffer.isEnabled():
+            data = opus_stream.get_next_opus_packet()
+        else:
+            log.logger.debug(f"databuffer is now {databuffer.GetState()}")
+            data = None
 
         if not data:
-            print("Audio stream is over")
+            log.logger.info("Audio stream is over")
             break
 
         if session.closed:
@@ -195,4 +158,4 @@ async def zello_stream_send_audio(session, ws, stream_id, opus_stream):
 
 
 if __name__ == "__main__":
-    main()
+    pass

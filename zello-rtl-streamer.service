@@ -1,0 +1,12 @@
+[Unit]
+Description=zello-rtl-streamer
+After=syslog.target
+
+[Service]
+ExecStart=python3 /home/pi/zello-rtl-streamer/main.py
+Restart=no
+WorkingDirectory=/home/pi/zello-rtl-streamer/
+SyslogIdentifier=zello-rtl-streamer
+
+[Install]
+WantedBy=multi-user.target

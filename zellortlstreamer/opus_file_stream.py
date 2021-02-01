@@ -1,8 +1,16 @@
+from bitstream import ReadError
+from zellortlstreamer.logger import log
 class OpusFileStream:
     # https://tools.ietf.org/html/rfc7845
     # https://tools.ietf.org/html/rfc3533
-    def __init__(self, filename):
-        self.opusfile = open(filename, "rb")
+    def __init__(self, filename, bs=None):
+        if filename:
+            self.opusfile = open(filename, "rb")
+            self.is_bitstream = False
+        else:
+            self.opusfile = bs.buffer
+            self.is_bitstream = True
+            log.logger.debug(f'bitstream length is actual {int(len(self.opusfile)/8)} B')
         if not self.opusfile:
             raise NameError(f'Failed opening {filename}')
         self.segment_sizes = bytes()
@@ -19,19 +27,37 @@ class OpusFileStream:
     def __get_next_ogg_packet_start(self):
         # Each Ogg page starts with magic bytes "OggS"
         # Stream may be corrupted, so find a first valid magic
-        magic = bytes("OggS", "ascii")
+        if self.is_bitstream:
+            magic = bytes("OggS", 'utf-8')
+        else:
+            magic = bytes("OggS", "ascii")
         verified_bytes = 0
         while True:
-            byte = self.opusfile.read(1)
+            if self.is_bitstream:
+                try:
+                    byte = self.opusfile.read(bytes, 1)
+                except ReadError as err:
+                    log.logger.error(f'bitstream read error __get_next_ogg_packet_start {err}')
+                    return False
+            else:
+                byte = self.opusfile.read(1)
             if not byte:
                 return False
 
-            if byte[0] == magic[verified_bytes]:
-                verified_bytes += 1
-                if verified_bytes == 4:
-                    return True
+            if self.is_bitstream:
+                if byte == magic[verified_bytes:verified_bytes+1]:
+                    verified_bytes += 1
+                    if verified_bytes == 4:
+                        return True
+                else:
+                    verified_bytes = 0
             else:
-                verified_bytes = 0
+                if byte[0] == magic[verified_bytes]:
+                    verified_bytes += 1
+                    if verified_bytes == 4:
+                        return True
+                else:
+                    verified_bytes = 0
 
 
     def __parse_ogg_packet_header(self):
@@ -55,16 +81,28 @@ class OpusFileStream:
         # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # | ...                                                           | 28-
         # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        version = self.opusfile.read(1)
-        header_type = self.opusfile.read(1)
-        granule = self.opusfile.read(8)
-        serial_num = self.opusfile.read(4)
-        self.sequence_number = int.from_bytes(self.opusfile.read(4), "little")
-        checksum = int.from_bytes(self.opusfile.read(4), "little")
-        self.segments_count = int.from_bytes(self.opusfile.read(1), "little")
-        self.segment_idx = 0
-        if self.segments_count > 0:
-            self.segment_sizes = self.opusfile.read(self.segments_count)
+        if self.is_bitstream:
+            version = self.opusfile.read(bytes, 1)
+            header_type = self.opusfile.read(bytes, 1)
+            granule = self.opusfile.read(bytes, 8)
+            serial_num = self.opusfile.read(bytes, 4)
+            self.sequence_number = int.from_bytes(self.opusfile.read(bytes, 4), "little")
+            checksum = int.from_bytes(self.opusfile.read(bytes, 4), "little")
+            self.segments_count = int.from_bytes(self.opusfile.read(bytes, 1), "little")
+            self.segment_idx = 0
+            if self.segments_count > 0:
+                self.segment_sizes = self.opusfile.read(bytes, self.segments_count)
+        else:
+            version = self.opusfile.read(1)
+            header_type = self.opusfile.read(1)
+            granule = self.opusfile.read(8)
+            serial_num = self.opusfile.read(4)
+            self.sequence_number = int.from_bytes(self.opusfile.read(4), "little")
+            checksum = int.from_bytes(self.opusfile.read(4), "little")
+            self.segments_count = int.from_bytes(self.opusfile.read(1), "little")
+            self.segment_idx = 0
+            if self.segments_count > 0:
+                self.segment_sizes = self.opusfile.read(self.segments_count)
 
 
     def __get_ogg_segment_data(self):
@@ -77,7 +115,10 @@ class OpusFileStream:
         # Return the bool continue_needed to accumulate such lacing data.
         while self.segment_idx < self.segments_count:
             segment_size = self.segment_sizes[self.segment_idx]
-            segment = self.opusfile.read(segment_size)
+            if self.is_bitstream:
+                segment = self.opusfile.read(bytes, segment_size)
+            else:
+                segment = self.opusfile.read(segment_size)
             data += segment
             continue_needed = (segment_size == 255)
             self.segment_idx += 1
@@ -150,7 +191,7 @@ class OpusFileStream:
             frames_per_packet = 2
         else:
             # API requires predefined number of frames per packet
-            print("An arbitrary number of frames in the packet - possible audio arifacts")
+            log.logger.debug("An arbitrary number of frames in the packet - possible audio arifacts")
             frames_per_packet = 1
 
         configs_ms = {}
@@ -200,12 +241,17 @@ class OpusFileStream:
                 # Drop current data if continuation sequence is broken
                 if continue_needed and (last_seq_num + 1) != self.sequence_number:
                     self.segments_count = -1
-                    print("Skipping frame: continuation sequence is broken")
+                    log.logger.debug("Skipping frame: continuation sequence is broken")
                     continue
 
             # Get another chunk of data from the parsed Ogg page
-            segment_data, continue_needed = self.__get_ogg_segment_data()
-            data += segment_data
+            try:
+                segment_data, continue_needed = self.__get_ogg_segment_data()
+                data += segment_data
+            except ReadError as err:
+                log.logger.error(f'bitstream read error get_next_opus_packet {err}')
+                return None
+            
             # The last data chunk may require continuing in the next Ogg page
             if continue_needed:
                 continue
@@ -220,7 +266,7 @@ class OpusFileStream:
             frames, duration = self.__parse_opus_toc(data)
             if self.frames_per_packet != frames or self.packet_duration != duration:
                 data = bytes()
-                print("Skipping frame - TOC differs")
+                log.logger.debug("Skipping frame - TOC differs")
                 continue
 
             return data
