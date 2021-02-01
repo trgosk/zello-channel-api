@@ -42,12 +42,12 @@ Follow instructions on [szpajder/RTLSDR-Airband/wiki](https://github.com/szpajde
 Extra steps:
 Compile with PULSE=1 VOXZMQ=1 options
 In rtl_airband.conf add at top level 
-* add `vox_zmq_enabled = true;```
+* add `vox_zmq_enabled = true;`
 * optional add `vox_zmq_host = "tcp://*:5556"`
 
 Configuation hints:
 * use `mode = "scan"`
-* define PulseAudio output `type = "pulse"``
+* define PulseAudio output `type = "pulse"`
    * define `sink = Virtual1`
 
 ## Install Opus encoder
