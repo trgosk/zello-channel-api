@@ -21,7 +21,7 @@ In my fork of [RTLSDR-Airband](https://github.com/trgosk/RTLSDR-Airband) has an 
 ```
 sudo apt-get update
 sudo apt-get upgrade
-sudo apt-get install pulseaudio-utils
+sudo apt-get install pulseaudio pulseaudio-utils libpulse-dev
 ```
 ### Create a virtual sink
 ```
@@ -31,7 +31,7 @@ pactl load-module module-null-sink format=float32le rate=16000 channels=1 sink_n
 ## Install and configure RTLSDR-Airband
 Get the code
 ```
-sudo apt-get install git
+sudo apt-get install git libzmq3-dev
 cd
 git clone https://github.com/trgosk/RTLSDR-Airband.git
 cd RTLSDR-Airband
@@ -40,7 +40,7 @@ cd RTLSDR-Airband
 Follow instructions on [szpajder/RTLSDR-Airband/wiki](https://github.com/szpajder/RTLSDR-Airband/wiki)
 
 Extra steps:
-Compile with PULSE=1 VOXZMQ=1 options
+Compile with `PULSE=1 VOXZMQ=1` options  
 In rtl_airband.conf add at top level 
 * add `vox_zmq_enabled = true;`
 * optional add `vox_zmq_host = "tcp://*:5556"`
@@ -77,6 +77,7 @@ sudo pip3 install asyncio
 sudo pip3 install uvloop 
 sudo pip3 install bitstream 
 sudo pip3 install zmq
+sudo pip3 install PyJWT
 cd
 git clone https://github.com/trgosk/zello-rtl-streamer.git
 cd zello-rtl-streamer
