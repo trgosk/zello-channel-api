@@ -31,4 +31,4 @@ class TokenManager:
         payload, 
         self.key, 
         algorithm='RS256', 
-        headers=self.header).decode()
+        headers=self.header)

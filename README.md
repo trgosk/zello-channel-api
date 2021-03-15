@@ -71,13 +71,7 @@ curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3
 ```
 sudo apt-get install build-essential python3 python3-dev python3-numpy
 sudo apt-get python3-pip 
-sudo pip3 install aiohttp 
-sudo pip3 install configparser 
-sudo pip3 install asyncio 
-sudo pip3 install uvloop 
-sudo pip3 install bitstream 
-sudo pip3 install zmq
-sudo pip3 install PyJWT
+sudo pip3 install -r requirements.txt
 cd
 git clone https://github.com/trgosk/zello-rtl-streamer.git
 cd zello-rtl-streamer
