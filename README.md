@@ -40,7 +40,7 @@ cd RTLSDR-Airband
 Follow instructions on [szpajder/RTLSDR-Airband/wiki](https://github.com/szpajder/RTLSDR-Airband/wiki)
 
 Extra steps:
-Compile with `PULSE=1 VOXZMQ=1` options  
+Compile with `-DPULSEAUDIO=ON -DVOXZMQ=ON` options  
 In rtl_airband.conf add at top level 
 * add `vox_zmq_enabled = true;`
 * optional add `vox_zmq_host = "tcp://*:5556"`
