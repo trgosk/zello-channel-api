@@ -55,7 +55,8 @@ async def authenticate(ws, username, password, token, channel):
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
             data = json.loads(msg.data)
-            if "refresh_token" in data:
+            print(data)
+            if "success" in data and data['success'] == True: #if "refresh_token" in data:
                 is_authorized = True
             elif "command" in data and "status" in data and data["command"] == "on_channel_status":
                 is_channel_available = data["status"] == "online"
