@@ -1,5 +1,6 @@
 aiohttp
 configparser
+cryptography>=3.3.1,<4.0.0
 asyncio
 uvloop
 bitstream

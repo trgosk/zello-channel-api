@@ -39,8 +39,9 @@ cd RTLSDR-Airband
 
 Follow instructions on [szpajder/RTLSDR-Airband/wiki](https://github.com/szpajder/RTLSDR-Airband/wiki)
 
-Extra steps:
-Compile with `-DPULSEAUDIO=ON -DVOXZMQ=ON` options  
+Extra steps:  
+For 4+ version compile with options `-DPULSEAUDIO=ON -DVOXZMQ=ON`  
+for <4 version compile with options `PULSE=1 VOXZMQ=1`  
 In rtl_airband.conf add at top level 
 * add `vox_zmq_enabled = true;`
 * optional add `vox_zmq_host = "tcp://*:5556"`
@@ -70,7 +71,7 @@ sudo ldconfig
 curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3
 ```
 sudo apt-get install build-essential python3 python3-dev python3-numpy
-sudo apt-get python3-pip 
+sudo apt-get install python3-pip 
 sudo pip3 install -r requirements.txt
 cd
 git clone https://github.com/trgosk/zello-rtl-streamer.git
