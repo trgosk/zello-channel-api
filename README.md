@@ -79,7 +79,9 @@ cd zello-rtl-streamer
 ```
 
 # Prepare configuration file
-
+```
+cp stream.conf.example stream.conf
+```
 
 ## Edit the configuration file [stream.conf](./stream.conf).
 

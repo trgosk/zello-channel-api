@@ -4,3 +4,6 @@ sdks/js/src/vendor/*
 build
 .externalNativeBuild
 .gradle
+*.pyc
+*.key
+stream.conf
