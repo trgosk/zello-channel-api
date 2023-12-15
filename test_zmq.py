@@ -1,16 +1,17 @@
-import zmq
 import sys
-from datetime import datetime
 import time
+from datetime import datetime
+
+import zmq
 
 port = "5557"
 if len(sys.argv) > 1:
-    port =  sys.argv[1]
+    port = sys.argv[1]
     int(port)
 
 context = zmq.Context()
 socket = context.socket(zmq.PUB)
-socket.bind("tcp://*:%s" % port)
+socket.bind(f"tcp://*:{port}")
 
 topic = "VOX"
 

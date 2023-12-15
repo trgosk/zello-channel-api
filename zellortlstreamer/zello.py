@@ -1,12 +1,15 @@
 #!/usr/bin/env python
-from zellortlstreamer import databuffer
-from zellortlstreamer.logger import log
 import asyncio
 import base64
 import json
-import time
-import aiohttp
 import socket
+import time
+
+import aiohttp
+
+from zellortlstreamer import databuffer
+from zellortlstreamer.logger import log
+
 from .opus_file_stream import OpusFileStream
 
 WS_ENDPOINT = "wss://zello.io/ws"
@@ -16,13 +19,14 @@ global ZelloWS, ZelloStreamID
 ZelloWS = None
 ZelloStreamID = None
 
+
 async def zello_stream_audio_to_channel(username, password, token, channel, opusfile):
     # Pass out the opened WebSocket and StreamID to handle synchronous keyboard interrupt
     global ZelloWS, ZelloStreamID
     try:
         opus_stream = OpusFileStream(opusfile, databuffer)
-        conn = aiohttp.TCPConnector(family = socket.AF_INET, ssl = False)
-        async with aiohttp.ClientSession(connector = conn) as session:
+        conn = aiohttp.TCPConnector(family=socket.AF_INET, ssl=False)
+        async with aiohttp.ClientSession(connector=conn) as session:
             async with session.ws_connect(WS_ENDPOINT) as ws:
                 ZelloWS = ws
                 await asyncio.wait_for(authenticate(ws, username, password, token, channel), WS_TIMEOUT_SEC)
@@ -38,6 +42,7 @@ async def zello_stream_audio_to_channel(username, password, token, channel, opus
         log.logger.error("Communication timeout")
     finally:
         log.logger.info(f"Ended streaming {opusfile}")
+
 
 async def authenticate(ws, username, password, token, channel):
     # https://github.com/zelloptt/zello-channel-api/blob/master/AUTH.md
@@ -56,7 +61,7 @@ async def authenticate(ws, username, password, token, channel):
         if msg.type == aiohttp.WSMsgType.TEXT:
             data = json.loads(msg.data)
             print(data)
-            if "success" in data and data['success'] == True: #if "refresh_token" in data:
+            if "success" in data and data['success'] is True:  # if "refresh_token" in data:
                 is_authorized = True
             elif "command" in data and "status" in data and data["command"] == "on_channel_status":
                 is_channel_available = data["status"] == "online"
@@ -74,8 +79,10 @@ async def zello_stream_start(ws, opus_stream):
 
     # Sample_rate is in little endian.
     # https://github.com/zelloptt/zello-channel-api/blob/409378acd06257bcd07e3f89e4fbc885a0cc6663/sdks/js/src/classes/utils.js#L63
-    codec_header = base64.b64encode(sample_rate.to_bytes(2, "little") + \
-        frames_per_packet.to_bytes(1, "big") + packet_duration.to_bytes(1, "big")).decode()
+    codec_header = base64.b64encode(
+        sample_rate.to_bytes(2, "little") +
+        frames_per_packet.to_bytes(1, "big") +
+        packet_duration.to_bytes(1, "big")).decode()
 
     await ws.send_str(json.dumps({
         "command": "start_stream",

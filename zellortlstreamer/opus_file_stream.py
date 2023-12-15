@@ -1,5 +1,8 @@
 from bitstream import ReadError
+
 from zellortlstreamer.logger import log
+
+
 class OpusFileStream:
     # https://tools.ietf.org/html/rfc7845
     # https://tools.ietf.org/html/rfc3533
@@ -22,7 +25,6 @@ class OpusFileStream:
         self.frames_per_packet = 0
         self.saved_packets = list()
         self.__fill_opus_config()
-
 
     def __get_next_ogg_packet_start(self):
         # Each Ogg page starts with magic bytes "OggS"
@@ -58,7 +60,6 @@ class OpusFileStream:
                         return True
                 else:
                     verified_bytes = 0
-
 
     def __parse_ogg_packet_header(self):
         # The Ogg page has the following format:
@@ -104,7 +105,6 @@ class OpusFileStream:
             if self.segments_count > 0:
                 self.segment_sizes = self.opusfile.read(self.segments_count)
 
-
     def __get_ogg_segment_data(self):
         data = bytes()
         continue_needed = False
@@ -126,7 +126,6 @@ class OpusFileStream:
                 break
 
         return data, continue_needed
-
 
     def __parse_opushead_header(self, data):
         # OpusHead header format:
@@ -153,7 +152,6 @@ class OpusFileStream:
         self.sample_rate = int.from_bytes(data[12:15], "little")
         return True
 
-
     def __parse_opustags_header(self, data):
         #  0               1               2               3                Byte
         #  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1| Bit
@@ -175,7 +173,6 @@ class OpusFileStream:
         # |                 User Comment #1 String Length                 |
         # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         return data.find(bytes("OpusTags", "ascii")) == 0
-
 
     def __parse_opus_toc(self, data):
         # https://tools.ietf.org/html/rfc6716#section-3.1
@@ -211,11 +208,9 @@ class OpusFileStream:
 
         return frames_per_packet, 20
 
-
     def all_headers_parsed(self):
         # There are three mandatory headers. Don't send data until the headers are parsed.
         return self.opus_headers_count >= 3
-
 
     def get_next_opus_packet(self):
         continue_needed = False
@@ -273,7 +268,6 @@ class OpusFileStream:
 
         return None
 
-
     def __parse_opus_headers(self, data):
         # First header is OpusHead, second one - OpusTags.
         # Third one is a Table Of Contents byte from the first Opus packet.
@@ -289,7 +283,6 @@ class OpusFileStream:
             self.packet_duration = packet_duration
             self.opus_headers_count += 1
             self.saved_packets.append(data)
-
 
     def __fill_opus_config(self):
         while not self.all_headers_parsed():

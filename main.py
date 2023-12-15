@@ -1,34 +1,46 @@
-import asyncio, threading, subprocess, signal, os
+import argparse
+import asyncio
+import configparser
 import logging
+import os
+import signal
+import subprocess
+import threading
+
 import uvloop
 import zmq
-import argparse, configparser
-from zellortlstreamer import (databuffer, __version__ as version)
+
 import zellortlstreamer.logger
-from zellortlstreamer.logger import (log, Log)
-from zellortlstreamer.zello import zello_stream_audio_to_channel
-from zellortlstreamer.myprotocol import (cb, MyProtocol)
+from zellortlstreamer import __version__ as version
+from zellortlstreamer import databuffer
+from zellortlstreamer.logger import log
+from zellortlstreamer.myprotocol import MyProtocol, cb
 from zellortlstreamer.thread_with_trace import Thread_with_trace
-from zellortlstreamer.tokenmanager import (TokenManager, PrivateKeyFileNotFoundError)
+from zellortlstreamer.tokenmanager import (PrivateKeyFileNotFoundError,
+                                           TokenManager)
+from zellortlstreamer.zello import zello_stream_audio_to_channel
+
 
 def start_zello():
     token = tokenman.getToken()
-    event_loop_zello.create_task(zello_stream_audio_to_channel(username, password,
-            token, channel, filename))
+    event_loop_zello.create_task(zello_stream_audio_to_channel(
+        username, password, token, channel, filename))
     if not event_loop_zello.is_running():
         log.logger.debug('Zello loop is not running, starting...')
         threading.Thread(target=lambda: run_zello_loop(event_loop_zello)).start()
     else:
-        event_loop_zello.call_soon_threadsafe(lambda: log.logger.debug('Zello loop is already running')) 
+        event_loop_zello.call_soon_threadsafe(lambda: log.logger.debug('Zello loop is already running'))
+
 
 cb.func = start_zello
+
 
 async def recv():
     global databuffer
     global event_loop_pipe, thread_pipe
     global zmq_address
     log.logger.info(f'Starting ZeroMQ Subscriber at {zmq_address}')
-    
+
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect(zmq_address)
@@ -48,7 +60,7 @@ async def recv():
             continue
 
         if messagedata == b'start':
-            #todo check if already running
+            # todo check if already running
             log.logger.info(f'[zeromq] received {messagedata} {d} {t} {freq}')
             databuffer.Enable()
             databuffer.watch = True
@@ -60,23 +72,23 @@ async def recv():
             log.logger.info(f'[zeromq] received {messagedata} {d} {t} {freq}')
             databuffer.Disable()
             await asyncio.sleep(0.5)
-            #kill thread_pipe
+            # kill thread_pipe
             if thread_pipe:
-                thread_pipe.kill() 
-                thread_pipe.join() 
-                if not thread_pipe.is_alive(): 
+                thread_pipe.kill()
+                thread_pipe.join()
+                if not thread_pipe.is_alive():
                     log.logger.debug('Pipe thread killed sucessfuly')
                 else:
                     log.logger.error('Pipe thread kill failed')
-            #empty buffer
+            # empty buffer
             log.logger.debug(f'Emptying buffer of size {databuffer.GetSizeInBytes()} B')
-            databuffer.ResetBuffer()    
+            databuffer.ResetBuffer()
             log.logger.debug(f'databuffer size\t{databuffer.GetSizeInBytes()} B')
-            #reset variables
+            # reset variables
             databuffer.flush = True
             databuffer.Enable()
             databuffer.watch = False
-            #if messagedata == b'bye':
+            # if messagedata == b'bye':
             #    break
 
         elif messagedata == b'hello2':
@@ -89,6 +101,7 @@ async def recv():
 
     socket.close()
 
+
 def run_zeromq_loop(loop):
     log.logger.debug('ZeroMQ loop starting')
     asyncio.set_event_loop(loop)
@@ -98,15 +111,17 @@ def run_zeromq_loop(loop):
     finally:
         log.logger.debug('ZeroMQ loop ended')
 
+
 def run_zello_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
     log.logger.info('Zello loop ended')
 
+
 def run_pipe_loop(loop):
     log.logger.info('Pipe reader loop starting')
     command = f"pacat --device={sink} --rate=48000 --record | opusenc --expect-loss=25 --max-delay=0 --framesize=20 --bitrate=256 --downmix-mono --raw - -"
-    pro = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, preexec_fn=os.setsid) 
+    pro = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, preexec_fn=os.setsid)
     asyncio.set_event_loop(loop)
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -118,6 +133,7 @@ def run_pipe_loop(loop):
         log.logger.debug('Pipe reader loop ended')
         os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
 
+
 def main():
     global username, password, channel, filename, sink, zmq_address
     global thread_pipe, thread_zeromq
@@ -126,7 +142,7 @@ def main():
     thread_pipe = None
     testrun = False
 
-    #Config (arguments)
+    # Config (arguments)
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-v", "--verbose", help="Set debug level output.", action="store_true"
@@ -143,7 +159,7 @@ def main():
 
     log.configure()
 
-    #Config (file)
+    # Config (file)
     try:
         config = configparser.ConfigParser()
         config.read('stream.conf')
@@ -159,14 +175,14 @@ def main():
         log.logger.error(f'Check config file. Missing key: {error}')
         return
 
-    #TokenManager init
+    # TokenManager init
     try:
         tokenman = TokenManager(privatekeyfile, issuer)
     except PrivateKeyFileNotFoundError:
         log.logger.error(f'Private key file "{privatekeyfile}" was not found')
         return
 
-    #Eventloops
+    # Eventloops
     event_loop_pipe = asyncio.new_event_loop()
     event_loop_zeromq = asyncio.new_event_loop()
     event_loop_zello = asyncio.new_event_loop()
@@ -179,11 +195,12 @@ def main():
     else:
         filename = ""
 
-        #zeroMQ Thread
+        # zeroMQ Thread
         thread_zeromq = Thread_with_trace(target=lambda: run_zeromq_loop(event_loop_zeromq))
         thread_zeromq.name = "thread_zeromq"
-        #thread_zeromq.daemon = True
+        # thread_zeromq.daemon = True
         thread_zeromq.start()
 
-if __name__=="__main__": 
-    main() 
+
+if __name__ == "__main__":
+    main()
